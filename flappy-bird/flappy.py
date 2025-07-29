@@ -19,7 +19,6 @@ class FlappyBird():
     height = 622
 
     def __init__(self):
-        pygame.init()
         # Game window
         self.width, self.height = FlappyBird.width, FlappyBird.height
         self.clock = pygame.time.Clock()
@@ -64,6 +63,8 @@ class FlappyBird():
         self.score_time = True
         self.score_font = pygame.font.Font("freesansbold.ttf", 27)
 
+        # end game if running for too long
+        self.truncated = False
 
     # Function to draw
     def draw_floor(self):
@@ -111,7 +112,6 @@ class FlappyBird():
             high_score_rect = high_score_text.get_rect(center=(self.width // 2, 506))
             self.screen.blit(high_score_text, high_score_rect)
 
-
     # Function to update the score
     def score_update(self):
         if self.pipes:
@@ -143,6 +143,7 @@ class FlappyBird():
                         self.bird_movement = -7
 
                     if event.key == pygame.K_SPACE and self.game_over:
+                        self.truncated = False #  
                         self.game_over = False
                         self.pipes = []
                         self.bird_movement = 0
@@ -175,13 +176,18 @@ class FlappyBird():
 
                 if self.bird_rect.top < 5 or self.bird_rect.bottom >= 550:
                     self.game_over = True
+                
+                if self.score > 500:
+                    self.truncated = True #
+                    self.game_over = True
 
                 self.screen.blit(rotated_bird, self.bird_rect)
                 self.pipe_animation()
                 self.score_update()
                 self.draw_score("game_on")
             elif self.game_over:
-                self.screen.blit(self.over_img, self.over_rect)
+                # self.screen.blit(self.over_img, self.over_rect)
+                self.screen.blit(self.bird_img, self.birds[0].get_rect(center=(67, 622//2)))
                 self.draw_score("game_over")
 
             # To move the base
@@ -196,6 +202,21 @@ class FlappyBird():
         pygame.quit()
         sys.exit()
 
+    def get_state_vector(self):
+        bird_pos = self.bird_rect.centery
+        next_window = (467, 683) #dummy position, far right for minimal impact
+        for pipe in self.pipes:
+            if pipe.top < 0 and pipe.centerx > self.bird_rect.centerx:
+                next_window = (pipe.midbottom[0], pipe.midbottom[1] + 150)
+                break
+        return {
+            'bird_pos':bird_pos,
+            'next_window':next_window,
+            'terminated':self.game_over,
+            'truncated':self.truncated,
+            'score':self.score,
+        }
+
     @classmethod
     def game_window(cls) -> tuple[int,int,int,int]:
         return 0, 0, cls.width, cls.height
@@ -204,6 +225,7 @@ class FlappyBird():
         return ['space']
 
 if __name__ == "__main__":
+    pygame.init()
     game = FlappyBird()
     game.run()
     # quiting the pygame and sys
