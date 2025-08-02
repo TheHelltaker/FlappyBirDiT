@@ -20,6 +20,7 @@ class FlappyBird():
 
     def __init__(self):
         # Game window
+        pygame.init()
         self.width, self.height = FlappyBird.width, FlappyBird.height
         self.clock = pygame.time.Clock()
         self.screen = pygame.display.set_mode((self.width, self.height))
