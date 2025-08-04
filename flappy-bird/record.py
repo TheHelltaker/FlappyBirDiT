@@ -1,5 +1,5 @@
 import mss
-import numpy
+import numpy as np
 import h5py
 from pynput import keyboard
 from pathlib import Path
@@ -41,7 +41,7 @@ class GameRecorder():
             if current_time >= next_frame_time:
                 last_time = time.time()
                 timestamps.append(last_time)
-                frames.append(numpy.array(sct.grab(self.window)))
+                frames.append(np.array(sct.grab(self.window)))
                 input = {
                     key:key in self.pressed_keys for key in self.input_map
                 }
@@ -80,13 +80,13 @@ class GameRecorder():
 
 def save_frames(chunk_index, file_name, frames, inputs : list[dict[str,bool]], timestamps):
     
-    frames = numpy.array(frames, dtype=numpy.uint8)
-    timestamps = numpy.array(timestamps, dtype=numpy.float64)
+    frames = np.array(frames, dtype=np.uint8)
+    timestamps = np.array(timestamps, dtype=np.float64)
 
     input_keys = list(inputs[0].keys())
     input_dtype = [(key,'bool') for key in input_keys]
 
-    input_array = numpy.zeros(len(inputs), dtype=input_dtype)
+    input_array = np.zeros(len(inputs), dtype=input_dtype)
     for i, input in enumerate(inputs):
         for key in input_keys:
             input_array[i][key] = input[key]
@@ -98,4 +98,62 @@ def save_frames(chunk_index, file_name, frames, inputs : list[dict[str,bool]], t
         group.create_dataset('frames',data=frames)
         group.create_dataset('timestamps',data=timestamps)
         group.create_dataset('inputs',data=input_array)
+
+import gymnasium as gym
+
+class RecorderEnvWrapper(gym.Wrapper):
+    """
+    A wrapper for a Gymnasium environment that records gameplay to an H5 file.
+    """
+    def __init__(self, env, output_dir, worker_index):
+        super().__init__(env)
+        self.output_dir = Path(output_dir)
+        self.worker_index = worker_index
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+
+        self.file_path = self.output_dir / f"rollout_worker_{self.worker_index}.h5"
+        self.chunk_index = 0
+        self.buffer = []
+        self.chunk_size = 1000
+
+    def step(self, action):
+        obs, reward, terminated, truncated, info = self.env.step(action)
+        
+        frame = self.env.render()
+        timestamp = time.time()
+        
+        self.buffer.append((frame, action, timestamp))
+
+        if len(self.buffer) >= self.chunk_size:
+            self._save_chunk()
+
+        return obs, reward, terminated, truncated, info
+
+    def reset(self, **kwargs):
+        return self.env.reset(**kwargs)
+
+    def close(self):
+        if self.buffer:
+            self._save_chunk()
+        self.env.close()
+
+    def _save_chunk(self):
+        if not self.buffer:
+            return
+
+        frames, actions, timestamps = zip(*self.buffer)
+        self.buffer = []
+
+        frames = np.array(frames, dtype=np.uint8)
+        actions = np.array(actions, dtype=np.int8)
+        timestamps = np.array(timestamps, dtype=np.float64)
+
+        with h5py.File(self.file_path, 'a') as f:
+            chunk_name = f'chunk_{self.chunk_index:04d}'
+            group = f.create_group(chunk_name)
+            group.create_dataset('frames', data=frames)
+            group.create_dataset('actions', data=actions)
+            group.create_dataset('timestamps', data=timestamps)
+        
+        self.chunk_index += 1
 

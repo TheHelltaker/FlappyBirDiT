@@ -39,9 +39,9 @@ def main():
 
     # --- Main Game Loop ---
     game_state = 'GAME_OVER'
-    obs, info = env.reset()
+    # obs, info = env.reset()
     print("Game ready. Press SPACE to start and flap. Press ESC to quit.")
-
+    frame_count = 0
     running = True
     while running:
         # Always render the screen to keep the window responsive.
@@ -50,12 +50,16 @@ def main():
         action_to_take = 0
 
         if game_state == 'PLAYING':
+            frame_count += 1
             action_to_take = human_input.action
             obs, reward, terminated, truncated, info = env.step(action_to_take)
+            if reward >= 1:
+                frame_count = 0
 
             if terminated or truncated:
-                print(f"Game Over. Score: {info['score']}. Press SPACE to restart.")
+                print(f"Game Over. Score: {info['score']}. Frame Count : {frame_count}. Press SPACE to restart.")
                 game_state = 'GAME_OVER'
+                frame_count = 0
 
         elif game_state == 'GAME_OVER':
 

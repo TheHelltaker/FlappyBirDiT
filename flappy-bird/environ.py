@@ -12,7 +12,7 @@ curpath = Path(__file__).parent
 
 class FlappyBirdEnv(gym.Env):
 
-    metadata = {"render_modes": {"human"}, "render_fps":120}
+    metadata = {"render_modes": ["human", "rgb_array"], "render_fps":120}
     PIPE_WIDTH = 69
     PIPE_HEIGHT = 425
     PIPE_GAP = 200
@@ -51,12 +51,18 @@ class FlappyBirdEnv(gym.Env):
         self.create_pipe = pygame.USEREVENT + 1
         pygame.time.set_timer(self.create_pipe, 1200)
 
-        if self.render_mode == "human":
-            # Game window
-            os.environ['SDL_VIDEO_WINDOW_POS'] = '0,0'
-            self.clock = pygame.time.Clock()
+        self.quit_signal = False
+
+        # Game window
+        if self.render_mode in self.metadata["render_modes"]:
+            if render_mode == "human":
+                os.environ['SDL_VIDEO_WINDOW_POS'] = '0,0'     
+            else:
+                os.environ['SDL_VIDEODRIVER'] = 'dummy' 
             self.screen = pygame.display.set_mode((self.width, self.height))
             pygame.display.set_caption("Flappy Bird")
+
+            self.clock = pygame.time.Clock()
 
             # setting background and base image
             self.back_img = pygame.image.load(curpath / "img_46.png")
@@ -119,20 +125,23 @@ class FlappyBirdEnv(gym.Env):
         return observation, reward, self.game_over, self.truncated, info
     
     def render(self):
+        if self.render_mode not in ["human", "rgb_array"]:
+            return None
+        
+        self._render_frame()
         if self.render_mode == "human":
-            self._render_frame()
             pygame.display.update()
-            if any(
-                self.bird_rect.colliderect(pipe["top"]) or
-                self.bird_rect.colliderect(pipe["bottom"]) for
-                pipe in self.pipes
-            ) and not self.game_over:
-                print("colliding")
             self.clock.tick(self.metadata["render_fps"])
+            return None
+        elif self.render_mode == "rgb_array":
+            frame = pygame.surfarray.array3d(self.screen)
+            return np.transpose(frame, (1, 0, 2))
 
     def close(self):
         if self.render_mode == "human":
             pygame.display.quit()
+            pygame.quit()
+        elif self.render_mode == "rgb_array":
             pygame.quit()
 
     def _get_obs(self):
