@@ -105,16 +105,17 @@ class RecorderEnvWrapper(gym.Wrapper):
     """
     A wrapper for a Gymnasium environment that records gameplay to an H5 file.
     """
-    def __init__(self, env, output_dir, worker_index):
+    def __init__(self, env, output_dir, worker_index, run_id):
         super().__init__(env)
         self.output_dir = Path(output_dir)
         self.worker_index = worker_index
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        self.file_path = self.output_dir / f"rollout_worker_{self.worker_index}.h5"
+        self.file_path = self.output_dir / f"rollout_worker_{self.worker_index}_run_{run_id}.h5"
         self.chunk_index = 0
         self.buffer = []
         self.chunk_size = 1000
+        self.action_meanings = self.env.get_action_meanings()
 
     def step(self, action):
         obs, reward, terminated, truncated, info = self.env.step(action)
@@ -145,15 +146,21 @@ class RecorderEnvWrapper(gym.Wrapper):
         self.buffer = []
 
         frames = np.array(frames, dtype=np.uint8)
-        actions = np.array(actions, dtype=np.int8)
         timestamps = np.array(timestamps, dtype=np.float64)
+
+        input_keys = [self.action_meanings[1]]
+        input_dtype = [(key, 'bool') for key in input_keys]
+        input_array = np.zeros(len(actions), dtype=input_dtype)
+        for i, action in enumerate(actions):
+            if action == 1:
+                input_array[i][input_keys[0]] = True
 
         with h5py.File(self.file_path, 'a') as f:
             chunk_name = f'chunk_{self.chunk_index:04d}'
             group = f.create_group(chunk_name)
             group.create_dataset('frames', data=frames)
-            group.create_dataset('actions', data=actions)
             group.create_dataset('timestamps', data=timestamps)
+            group.create_dataset('inputs', data=input_array) # Save as 'inputs'
         
         self.chunk_index += 1
 

@@ -2,3 +2,9 @@
 .vscode
 */__pycache__
 flappy-bird/data/
+flappy-bird/agent_models
+flappy_ppo_tensorboard
+wandb
+runs
+models
+ppo_flappybird.zip

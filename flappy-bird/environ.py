@@ -55,10 +55,10 @@ class FlappyBirdEnv(gym.Env):
 
         # Game window
         if self.render_mode in self.metadata["render_modes"]:
-            if render_mode == "human":
-                os.environ['SDL_VIDEO_WINDOW_POS'] = '0,0'     
-            else:
-                os.environ['SDL_VIDEODRIVER'] = 'dummy' 
+            os.environ['SDL_VIDEO_WINDOW_POS'] = '0,0'
+            os.environ["__NV_PRIME_RENDER_OFFLOAD"] = "1"
+            os.environ["__GLX_VENDOR_LIBRARY_NAME"] = "nvidia"     
+
             self.screen = pygame.display.set_mode((self.width, self.height))
             pygame.display.set_caption("Flappy Bird")
 
@@ -129,19 +129,19 @@ class FlappyBirdEnv(gym.Env):
             return None
         
         self._render_frame()
-        if self.render_mode == "human":
-            pygame.display.update()
-            self.clock.tick(self.metadata["render_fps"])
-            return None
-        elif self.render_mode == "rgb_array":
+
+        pygame.display.update()
+        self.clock.tick(self.metadata["render_fps"])
+
+        if self.render_mode == "rgb_array":
             frame = pygame.surfarray.array3d(self.screen)
             return np.transpose(frame, (1, 0, 2))
+        
+        return None
 
     def close(self):
-        if self.render_mode == "human":
+        if self.render_mode in self.metadata["render_modes"]:
             pygame.display.quit()
-            pygame.quit()
-        elif self.render_mode == "rgb_array":
             pygame.quit()
 
     def _get_obs(self):
@@ -172,7 +172,8 @@ class FlappyBirdEnv(gym.Env):
             if event.type == self.bird_flap and not self.game_over:
                 self.bird_index = (self.bird_index + 1) % len(self.birds)
 
-            if event.type == self.create_pipe and not self.game_over:
+            if ( event.type == self.create_pipe and not self.game_over
+            and not any(pipe["top"].right > 250 for pipe in self.pipes) ):
                 gap_center_y = np.random.randint(150, 350)
                 start_x = 440 + np.random.randint(20, 60)
                 top_pipe = pygame.Rect(
@@ -269,5 +270,8 @@ class FlappyBirdEnv(gym.Env):
             score_text = self.score_font.render(str(self.score), True, (255, 255, 255))
             score_rect = score_text.get_rect(center=(self.width // 2, 66))
             self.screen.blit(score_text, score_rect)
+
+    def get_action_meanings(self):
+        return {0: "", 1: "space"}
 
 
